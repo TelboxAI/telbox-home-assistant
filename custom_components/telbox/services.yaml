@@ -1,0 +1,25 @@
+propose_message:
+  name: Propose a Notes to Self message
+  description: Request owner approval for one text. Use the same event ID when retrying it.
+  fields:
+    notice:
+      name: Message
+      required: true
+      selector:
+        text:
+          multiline: true
+    source_event_id:
+      name: Source event ID
+      description: Use 1–60 letters, digits, underscores or hyphens from the originating event.
+      required: true
+      selector:
+        text:
+message_status:
+  name: Check a message proposal
+  description: Read a proposal from this Telbox connection and its device acknowledgment.
+  fields:
+    draft_id:
+      name: Draft ID
+      required: true
+      selector:
+        text:

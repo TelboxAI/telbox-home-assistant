@@ -1,0 +1,35 @@
+{
+  "title": "Telbox",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Telbox",
+        "description": "Register this Home Assistant installation with Telbox. You choose the Telbox account on the consent screen.",
+        "data": {
+          "replace_client": "Register a replacement if Telbox removed the previous client"
+        }
+      },
+      "review": {
+        "title": "Continue to Telbox",
+        "description": "Your installation’s public client ID is {client_id}. Telbox must approve this client before you can sign in. If review is pending, you can return to setup later with the same ID."
+      },
+      "owner_setup": {
+        "title": "Finish setting up Notes to Self",
+        "description": "{next_step}\n\nWhen you are ready, continue to sign in to Telbox again. For an existing connection, choose the account originally linked to this home."
+      }
+    },
+    "error": {
+      "registration_failed": "Telbox could not register this installation. Try again."
+    },
+    "abort": {
+      "already_configured": "Telbox is already connected.",
+      "already_in_progress": "Telbox setup is already open.",
+      "wrong_account": "Choose the Telbox account originally connected to this home.",
+      "inbox_unavailable": "Notes to Self is unavailable. Check the Telbox account and connection.",
+      "user_rejected_authorize": "Telbox access was declined.",
+      "oauth_unauthorized": "Telbox declined this connection. Check client approval and try again.",
+      "oauth_failed": "Telbox could not finish sign-in. Try again.",
+      "reauth_successful": "Telbox is connected again."
+    }
+  }
+}

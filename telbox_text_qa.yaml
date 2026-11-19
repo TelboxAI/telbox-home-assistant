@@ -1,0 +1,107 @@
+# Home Assistant package, manual QA script only; no automation/trigger/home control.
+rest_command:
+  telbox_text_qa_rpc:
+    url: https://api.telbox.ai/mcp
+    method: POST
+    content_type: application/json
+    verify_ssl: true
+    timeout: 15
+    headers:
+      Authorization: !secret telbox_qa_authorization
+      Accept: application/json, text/event-stream
+      MCP-Protocol-Version: '2025-03-26'
+    payload: '{{ body | to_json }}'
+script:
+  telbox_text_qa:
+    alias: Telbox text qualification
+    mode: single
+    sequence:
+      - condition: template
+        value_template: >-
+          {{ source_event_id is defined and source_event_id is string
+             and source_event_id | regex_match('^[A-Za-z0-9_-]{1,60}$')
+             and notice is defined and notice is string
+             and notice | trim | length > 0 and notice | length <= 8192 }}
+      - action: rest_command.telbox_text_qa_rpc
+        data:
+          body:
+            jsonrpc: '2.0'
+            id: 1
+            method: initialize
+            params:
+              protocolVersion: '2025-03-26'
+              capabilities: {}
+              clientInfo: {name: telbox-home-assistant-text-qa, version: '0.1.0'}
+        response_variable: init
+      - condition: template
+        value_template: >-
+          {{ init.status == 200 and init.content is mapping
+             and init.content.get('jsonrpc') == '2.0' and init.content.get('id') == 1
+             and 'error' not in init.content
+             and init.content.get('result', {}).get('protocolVersion') == '2025-03-26'
+             and 'tools' in init.content.get('result', {}).get('capabilities', {}) }}
+      - action: rest_command.telbox_text_qa_rpc
+        data:
+          body: {jsonrpc: '2.0', method: notifications/initialized, params: {}}
+        response_variable: initialized
+      - condition: template
+        value_template: '{{ initialized.status in [200, 202, 204] }}'
+      - action: rest_command.telbox_text_qa_rpc
+        data:
+          body: {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: get_my_inbox, arguments: {}}}
+        response_variable: inbox
+      - condition: template
+        value_template: >-
+          {{ inbox.status == 200 and inbox.content is mapping
+             and inbox.content.get('jsonrpc') == '2.0' and inbox.content.get('id') == 2
+             and 'error' not in inbox.content
+             and not inbox.content.get('result', {}).get('isError', false)
+             and (not inbox.content.result.get('content') or
+               (inbox.content.result.content | length == 1 and inbox.content.result.content[0].type == 'text'
+                and inbox.content.result.content[0].text | from_json == inbox.content.result.get('structuredContent')))
+             and inbox.content.get('result', {}).get('structuredContent', {}).get('status') == 'ready'
+             and inbox.content.result.structuredContent.get('owner_approval_required') == true
+             and inbox.content.result.structuredContent.get('thread_id', '') is string
+             and inbox.content.result.structuredContent.get('thread_id', '') | length == 36
+             and inbox.content.result.structuredContent.get('thread_id', '')
+                 | regex_match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') }}
+      - action: rest_command.telbox_text_qa_rpc
+        data:
+          body:
+            jsonrpc: '2.0'
+            id: 3
+            method: tools/call
+            params:
+              name: send_message
+              arguments:
+                thread_id: '{{ inbox.content.result.structuredContent.thread_id }}'
+                content: '{{ notice }}'
+                client_message_id: 'ha-{{ source_event_id }}'
+        response_variable: proposal
+      - condition: template
+        value_template: >-
+          {{ proposal.status == 200 and proposal.content is mapping
+             and proposal.content.get('jsonrpc') == '2.0' and proposal.content.get('id') == 3
+             and 'error' not in proposal.content
+             and not proposal.content.get('result', {}).get('isError', false)
+             and (not proposal.content.result.get('content') or
+               (proposal.content.result.content | length == 1 and proposal.content.result.content[0].type == 'text'
+                and proposal.content.result.content[0].text | from_json == proposal.content.result.get('structuredContent')))
+             and proposal.content.get('result', {}).get('structuredContent', {}).get('status')
+                 in ['pending_approval', 'approved', 'rejected', 'executed', 'expired']
+             and proposal.content.result.structuredContent.get('draft_id', '') is string
+             and proposal.content.result.structuredContent.get('draft_id', '') | length == 36
+             and proposal.content.result.structuredContent.get('draft_id', '')
+                 | regex_match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+             and proposal.content.result.structuredContent.get('approval_request_id', '') is string
+             and proposal.content.result.structuredContent.get('approval_request_id', '') | length == 36
+             and proposal.content.result.structuredContent.get('approval_request_id', '')
+                 | regex_match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') }}
+      - variables:
+          receipt:
+            status: '{{ proposal.content.result.structuredContent.status }}'
+            draft_id: '{{ proposal.content.result.structuredContent.draft_id }}'
+            approval_request_id: '{{ proposal.content.result.structuredContent.approval_request_id }}'
+            phone_render_verified: false
+      - stop: Proposal receipt returned; owner approval and phone verification remain separate.
+        response_variable: receipt
